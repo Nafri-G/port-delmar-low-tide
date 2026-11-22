@@ -1,79 +1,42 @@
-// The screenshot scenes behind ?shot=start|play|end. Each one plays the real rules forward from a
-// fresh world for a fixed number of steps, steered by a simple autopilot (look ahead each way the
-// paddle could move, keep clear of blocks, chase the lowest coin when that is safe), so the frame
-// is what a short game really looks like and the same seed always gives the same frame.
-import { FIELD, PLAYER, STEP } from './config.js';
-import { EVENT_OVER, KIND_BLOCK } from './world.js';
-import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
-
-const START_SECONDS = 5;
-const PLAY_SECONDS = 26;
-const END_LIMIT_SECONDS = 600;
-/**
- * How far ahead, in seconds, the autopilot checks each way it could move: the play scene's pilot
- * looks well ahead and keeps all its lives; the end scene's looks only a moment ahead, so it is
- * caught out once the blocks speed up, as a hurried player is.
- */
-const HORIZON_PLAY = 0.7;
-const HORIZON_END = 0.25;
-const SAMPLE = 1 / 30;
-const DIRECTIONS = [0, -1, 1];
-/** Extra room, each side, it keeps between the paddle and a block. */
-const MARGIN = 10;
-
-/** Seconds until moving in `direction` (-1, 0, 1) runs the paddle into a block; Infinity when it never does. */
-function timeToHit(state, direction, horizon) {
-  const player = state.player;
-  for (let t = SAMPLE; t <= horizon; t += SAMPLE) {
-    const x = Math.min(FIELD.width - player.width, Math.max(0, player.x + direction * PLAYER.speed * t));
-    for (let index = 0; index < state.items.length; index += 1) {
-      const item = state.items[index];
-      if (!item.active || item.kind !== KIND_BLOCK) continue;
-      const y = item.y + item.speed * t;
-      if (y + item.height > player.y && y < player.y + player.height && item.x < x + player.width + MARGIN && item.x + item.width > x - MARGIN) return t;
+// Screenshot scenes use the same entities, renderer and rules as live play.
+// Frozen time makes palms, signal phases and HUD animation repeatable.
+export function stageShot(name,state) {
+  state.world.time=92;
+  state.elapsed=92;
+  state.screen=name==='start'?'title':'play';
+  state.player.x=1760;state.player.y=1032;
+  state.camera={x:1760,y:1050,zoom:0.94};
+  state.money=1250;
+  state.objective='MARA VELEZ / Deliver the sealed ledger to Sunmarket';
+  state.marker={x:1960,y:1032,label:'SUNMARKET · DELIVERY'};
+  state.mission=0;state.stage=1;
+  state.dialogue='Mara Velez: That ledger buys our waterfront back. Keep it dry.';
+  state.toast='LOW TIDE / A city that owes you nothing.';
+  const car=state.world.cars[0];
+  Object.assign(car,{x:1740,y:1125,angle:-0.17,speed:155,controlled:true,stolen:true,color:'#edb957',health:86});
+  if(name==='start') {
+    state.player.x=1990;state.player.y=1030;
+    state.camera={x:1920,y:1100,zoom:0.84};
+    state.dialogue='';
+  } else if(name==='mission') {
+    state.car=null;
+    state.player.x=1910;state.player.y=1032;
+    state.camera={x:1900,y:1100,zoom:1.12};
+    state.objective='MARA VELEZ / The handoff · Approach the amber marker';
+    state.dialogue='Mara Velez: You made it. The harbor has a long memory.';
+    state.money=1750;
+  } else {
+    state.car=car;
+    state.player.x=car.x;state.player.y=car.y;
+    state.dialogue='';
+    state.objective=name==='police'?'IVO SANTOS / Lose the patrols. Keep the ledger safe.':'NIKO REYES / Bring the Sunrunner to Pier 9';
+    state.marker={x:2080,y:1672,label:'PIER 9 / 620 M'};
+    if(name==='police') {
+      state.wanted=3;state.heat=3;state.escape=4;
+      for(let i=0;i<4;i++) state.world.cars.push({id:`shot-patrol-${i}`,kind:'police',x:1570-i*54,y:1120+(i%2)*35,angle:0.08,speed:180,health:100,color:'#ecf3e8',controlled:false,parked:false});
+      state.world.peds.push({id:'shot-cop',cop:true,x:1690,y:1060,angle:0,health:100,panic:0,color:'#173b60'});
+      state.toast='DISPATCH / Suspect heading east on Pelican Avenue';
     }
   }
-  return Infinity;
-}
-
-/** Of the safe ways to move, the one toward the lowest coin (or the centre); else the one that is hit last. */
-function autopilot(state, horizon) {
-  const player = state.player;
-  let coin = null;
-  for (let index = 0; index < state.items.length; index += 1) {
-    const item = state.items[index];
-    if (item.active && item.kind !== KIND_BLOCK && (coin === null || item.y > coin.y)) coin = item;
-  }
-  const target = coin === null ? FIELD.width / 2 : coin.x + coin.width / 2;
-  const centre = player.x + player.width / 2;
-  const wanted = target > centre + 8 ? 1 : target < centre - 8 ? -1 : 0;
-  let best = wanted;
-  let bestTime = timeToHit(state, wanted, horizon);
-  for (let index = 0; index < DIRECTIONS.length && bestTime !== Infinity; index += 1) {
-    const time = timeToHit(state, DIRECTIONS[index], horizon);
-    if (time > bestTime) {
-      bestTime = time;
-      best = DIRECTIONS[index];
-    }
-  }
-  return best;
-}
-
-/**
- * Set `world` to the named scene (start, play or end; any other name is start) and return the
- * screen to draw over it and the best score to show.
- */
-export function stageShot(name, world) {
-  world.reset();
-  if (name !== 'play' && name !== 'end') {
-    for (let index = 0; index < START_SECONDS / STEP; index += 1) world.step(STEP, 0, true);
-    return { screen: SCREEN_TITLE, best: 0 };
-  }
-  const limit = name === 'end' ? END_LIMIT_SECONDS : PLAY_SECONDS;
-  const horizon = name === 'end' ? HORIZON_END : HORIZON_PLAY;
-  for (let index = 0; index < limit / STEP; index += 1) {
-    if (world.step(STEP, autopilot(world.state, horizon), false) & EVENT_OVER) break;
-  }
-  const over = world.state.lives === 0;
-  return { screen: over ? SCREEN_OVER : SCREEN_PLAY, best: world.state.score };
+  return state;
 }

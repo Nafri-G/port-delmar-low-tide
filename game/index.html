@@ -2,18 +2,18 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Block Dodger</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="theme-color" content="#112d3b">
+<title>Port Delmar — Low Tide</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23112d3b'/%3E%3Cpath d='M12 45V18h21q19 0 19 13T33 44H22' stroke='%237ff1c5' stroke-width='7' fill='none'/%3E%3C/svg%3E">
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #11141b; }
-  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  /* Read aloud, never shown: the status line screen readers announce. */
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#112d3b;color:#fff0cc;font-family:Arial,sans-serif}canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}#status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}#touch{display:none;position:absolute;inset:0;pointer-events:none}#stick{position:absolute;bottom:36px;left:36px;width:120px;height:120px;border:2px solid #fff6;border-radius:50%;background:#112d3b88;pointer-events:auto}#nub{position:absolute;left:40px;top:40px;width:36px;height:36px;border-radius:50%;background:#7ff1c5aa}.touch-button{position:absolute;bottom:40px;right:28px;border:2px solid #fff6;border-radius:50%;width:65px;height:65px;background:#112d3baa;color:#fff0cc;pointer-events:auto;font-weight:bold;touch-action:none}#touch-shoot{right:108px;bottom:100px}#touch-run{right:108px;bottom:22px}@media(pointer:coarse){#touch.active{display:block}}
 </style>
 </head>
 <body>
-<canvas id="game" aria-label="Block Dodger: move the paddle left and right to dodge falling blocks and catch coins"></canvas>
-<p id="status" role="status" aria-live="polite"></p>
+<canvas id="game" tabindex="0" aria-label="Port Delmar open world game. WASD to move, E to enter cars, mouse to aim, click to shoot, P to pause."></canvas>
+<p id="status" role="status" aria-live="polite">Port Delmar. Press Enter to start.</p>
+<div id="touch"><div id="stick"><div id="nub"></div></div><button id="touch-enter" class="touch-button">ENTER</button><button id="touch-shoot" class="touch-button">FIRE</button><button id="touch-run" class="touch-button">RUN</button></div>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
