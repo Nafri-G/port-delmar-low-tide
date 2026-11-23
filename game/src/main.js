@@ -512,15 +512,15 @@ function updateCar(dt) {
     burst(car.x, car.y, '#ffcd61', 10, 140);
     car.speed *= -0.25;
   } else if (hit) {
-    // A car nosed into a building corner at a crawl used to lose half its
-    // speed every frame, so it crept at ~3 m/s and the wall-slide could
-    // never carry it around the corner: the mission 3 escape autopilot sat
-    // wedged at (1710,1701) for the whole 150 s. Below 40 m/s the wall
-    // just blocks movement (moveEntity already prevents penetration), so
-    // keep the speed and let the slide work — the car grinds around the
-    // corner instead of parking in it. Above 40 the old halving still
-    // stops the car; the >120 bounce with damage is untouched.
-    if (Math.abs(car.speed) > 40) car.speed *= 0.5;
+    // Scraping a wall is friction, not an instant halving. The old x0.5
+    // every frame pinned a car nosed into a building corner at ~3 m/s:
+    // the wall-slide could never carry it around the corner, so the escape
+    // autopilot sat wedged at (1060,1706) for 10-30 s while the cops piled
+    // in and shoved it back into the wall. Friction (~1.2/s) still slows
+    // the car against a wall, but it keeps enough speed for the slide to
+    // carry it around the corner and drive out. The >120 crash (damage +
+    // bounce) above is untouched, so a real high-speed smash still hurts.
+    car.speed *= Math.max(0, 1 - 1.2 * dt);
   }
   // Traffic and parked cars are solid to the player car.
   for (const other of state.world.cars) {
