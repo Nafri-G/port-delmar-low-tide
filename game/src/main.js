@@ -586,9 +586,19 @@ function updateCar(dt) {
       // shoved the player car sideways faster than it could steer back to
       // the road centre, pinning it on the north sidewalk (y~1700) where
       // it ran over pedestrians and climbed 3 -> 5 stars in the first 10 s.
-      // 2 px still separates overlapping cars in ~0.3 s.
+      // 2 px still separates overlapping cars in ~0.3 s. And the push
+      // moves the OTHER car when it is a police car: a ramming cop bounces
+      // off the player instead of shoving the player sideways — the old
+      // direction shoved the player onto the sidewalk (y~1389, the ped
+      // line) on the north leg, where it ran over a pedestrian and climbed
+      // a star even after the peds learned to flee. Traffic still shoves
+      // the player, as a crash should.
       const push = Math.atan2(car.y - other.y, car.x - other.x);
-      moveEntity(state.world, car, Math.cos(push) * 2, Math.sin(push) * 2, 15);
+      if (other.kind === 'police') {
+        moveEntity(state.world, other, Math.cos(push + Math.PI) * 2, Math.sin(push + Math.PI) * 2, 15);
+      } else {
+        moveEntity(state.world, car, Math.cos(push) * 2, Math.sin(push) * 2, 15);
+      }
     }
   }
   // Running down a pedestrian is a crime, and it is felt — but only if the
