@@ -513,9 +513,14 @@ function updateCar(dt) {
   // Steering keeps authority at a crawl: the old code needed |speed| > 4
   // to steer at all, so a car pinned against a wall at speed ~0 could
   // never turn its nose off the wall and stayed wedged forever. The floor
-  // only applies while the driver gives throttle, and driving above
-  // 36 m/s is unchanged, so normal handling is untouched.
-  const steerSpeed = Math.max(Math.abs(car.speed), throttle !== 0 ? 36 : 0);
+  // is 100 m/s of turn authority, not 36: at 36 the car turned 90 deg in
+  // ~2.3 s, so every corner became a slow crawl where the police caught
+  // up and the escape timer never banked — the car was seen for ~13 s
+  // of a 20 s lap and banked only ~7 s against the 16 s it needs. At
+  // 100 the same turn takes ~0.8 s, so a driver who turns hard gets
+  // through the corner and back up to speed before the cops arrive.
+  // Driving above 100 m/s is unchanged, so normal handling is untouched.
+  const steerSpeed = Math.max(Math.abs(car.speed), throttle !== 0 ? 100 : 0);
   if (steerInput !== 0 && steerSpeed > 0) {
     car.angle += steerInput * CAR.steer * (steerSpeed / CAR.maxSpeed) * dt * 2.2;
   }
