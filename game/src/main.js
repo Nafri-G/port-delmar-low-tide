@@ -317,15 +317,18 @@ function updatePolice(dt) {
     let diff = target - car.angle;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    car.angle += Math.max(-1.5 * dt, Math.min(1.5 * dt, diff));
-    // Police turn rate is 1.5 rad/s, not 2.4: the old rate let the cops
+    car.angle += Math.max(-1.0 * dt, Math.min(1.0 * dt, diff));
+    // Police turn rate is 1.0 rad/s, not 2.4: the old rate let the cops
     // cut every corner as tightly as the player's car, so they intercepted
     // the escape at each turn and kept line of sight for the whole chase
-    // (the timer banked ~1 s in 130 s of orbiting the last waypoint).
-    // Police cars are heavier than the player's car — they are fast on a
-    // straight but swing wide on a sharp turn, so a driver who turns hard
-    // opens a real gap. A driver who drives straight or stops is still
-    // caught at once: the cops are faster than the player in a line.
+    // (the timer banked ~1 s in 130 s of orbiting the last waypoint). At
+    // 1.5 the player banked 6.9 s in the first lap — one star lost, then a
+    // pedestrian put it back — but still short of the 16 s needed before
+    // the car reaches the last waypoint and orbits it. Police cars are
+    // heavier than the player's car: they are fast on a straight but swing
+    // wide on a sharp turn, so a driver who turns hard opens a real gap.
+    // A driver who drives straight or stops is still caught at once: the
+    // cops are faster than the player in a line.
     // Police top speed was 250 + 18/wanted (304 at 3 stars) against the
     // player's 310, a 6 m/s margin: the cops never fell behind, so they
     // re-acquired line of sight before the 8 s escape timer could ever
