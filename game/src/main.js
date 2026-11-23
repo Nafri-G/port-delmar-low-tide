@@ -328,7 +328,14 @@ function updatePolice(dt) {
     car.speed += ((dist > 70 ? top : top * 0.55) - car.speed) * Math.min(1, dt * 1.6);
     const hit = moveEntity(state.world, car, Math.cos(car.angle) * car.speed * dt, Math.sin(car.angle) * car.speed * dt, 15);
     if (hit) { car.speed *= 0.4; car.angle += 0.3; }
-    if (dist < 420 && lineOfSight(state.world, car, pos)) seen = true;
+    // Sight range is 300 m, not 420: at 420 the cops kept line of sight
+    // for the whole chase (they match the player's speed at high wanted),
+    // so the escape timer banked ~5 s in 30 s and the mission was
+    // unwinnable. At 300 the player banks time by opening a real gap on a
+    // straight or breaking line of sight around a block, while a driver who
+    // stops or dawdles is still spotted at once — the cops close 300 m in
+    // about a second.
+    if (dist < 300 && lineOfSight(state.world, car, pos)) seen = true;
     if (dist < 46) {
       if (state.car) {
         // 9/s per cop destroyed the car in ~10 s of contact, so a
@@ -363,7 +370,7 @@ function updatePolice(dt) {
     const dist = Math.hypot(dx, dy);
     cop.angle = Math.atan2(dy, dx);
     moveEntity(state.world, cop, (dx / (dist || 1)) * 95 * dt, (dy / (dist || 1)) * 95 * dt, 7);
-    if (dist < 420 && lineOfSight(state.world, cop, pos)) seen = true;
+    if (dist < 300 && lineOfSight(state.world, cop, pos)) seen = true;
     if (dist < 30 && !state.car) state.bust += 60 * dt;
   }
   state.inSight = seen;
