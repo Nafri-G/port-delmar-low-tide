@@ -280,7 +280,12 @@ function spawnCop() {
 function addWanted(n) {
   if (state.crimeT > 0) return;
   state.wanted = Math.min(5, state.wanted + n);
-  state.escape = 0;
+  // No escape reset here: committing a crime raises the heat, but it does
+  // not erase the unseen time already banked. The old reset wiped the whole
+  // bank (and the star it was building toward) every time the escape
+  // autopilot clipped a pedestrian, so one accident undid 5+ s of evasion
+  // and re-escalated the chase at once. The crime still costs a star's
+  // worth of new banking (8 s), which is the real penalty.
   state.crimeT = CRIME_COOLDOWN;
   if (state.wanted > 0) notify(`WANTED LEVEL ${state.wanted} / The police are coming`);
 }
@@ -506,7 +511,12 @@ function updateCar(dt) {
   const before = car.speed;
   const hit = moveEntity(state.world, car, Math.cos(car.angle) * car.speed * dt, Math.sin(car.angle) * car.speed * dt, 15);
   if (hit && Math.abs(before) > 120) {
-    car.health -= (Math.abs(before) - 120) * 0.12;
+    // A high-speed wall smash still hurts, but the old 0.12 factor took
+    // ~19 HP off a 280 m/s clip — and the escape autopilot clips a corner
+    // on nearly every turn, so wall damage alone killed the car in ~20 s.
+    // 0.06 keeps a real penalty for smashing a wall at speed without making
+    // corner clips a death sentence.
+    car.health -= (Math.abs(before) - 120) * 0.06;
     if (Math.abs(before) > 200) state.player.health -= (Math.abs(before) - 200) * 0.05;
     audio.play('crash');
     burst(car.x, car.y, '#ffcd61', 10, 140);
@@ -539,12 +549,14 @@ function updateCar(dt) {
         burst(car.x, car.y, '#ffcd61', 8, 120);
       }
       // Same split for the speed cut: the x0.55 below halved the player's
-      // speed every frame a cop stayed within 38 px, which was the real
-      // glue — with it, the player oscillated at ~55-90 m/s while the cops
-      // closed at 151, so they never let go and the escape timer never
-      // banked. Police contact now costs only the ram DoT + ram slowdown;
-      // traffic still halves the speed, as a crash should.
-      if (other.kind !== 'police') car.speed *= 0.55;
+      // speed every frame a car stayed within 38 px, so plowing through
+      // traffic kept the car at ~80 m/s while the cops closed at 210 — the
+      // player never reached the top speed that was supposed to be the
+      // escape's advantage. Traffic contact is now friction (~1.5/s, like
+      // the wall scrape): the car still slows through a crash, but it keeps
+      // enough speed to pull away afterwards. Police contact still costs
+      // only the ram DoT + ram slowdown.
+      if (other.kind !== 'police') car.speed *= Math.max(0, 1 - 1.5 * dt);
       // The separation push goes through moveEntity, not a raw position
       // change: a raw push could shove the car inside a building or past
       // the map edge, where every direction is solid and moveEntity then
