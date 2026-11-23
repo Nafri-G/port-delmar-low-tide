@@ -497,7 +497,13 @@ function updateCar(dt) {
   for (const other of state.world.cars) {
     if (other === car || other.health <= 0) continue;
     if (Math.hypot(other.x - car.x, other.y - car.y) < 38) {
-      if (Math.abs(car.speed) > 90) {
+      // Police rams have their own damage (the 2/s ram in updatePolice):
+      // the 6 HP crash tick below fired every frame the player drove at
+      // >90 m/s in contact with a ramming cop, shredding the car in ~11 s
+      // of driving and making the 3-star escape unwinnable even though the
+      // ram DoT itself was survivable. Police contact still slows the car
+      // and shoves it; only the crash tick is skipped for them.
+      if (other.kind !== 'police' && Math.abs(car.speed) > 90) {
         car.health -= 6;
         other.health -= 4;
         audio.play('crash');
