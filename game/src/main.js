@@ -287,7 +287,12 @@ function addWanted(n) {
 
 function updatePolice(dt) {
   const pos = focusPos();
-  const wantCars = state.wanted >= 1 ? Math.min(state.wanted + 1, 4) : 0;
+  // One police car per wanted star, up to four: at 3 stars the escape used
+  // to face four cars (wanted+1), and four simultaneous rams — even at 1/s
+  // each — plus wall and traffic hits killed the car in ~11 s of driving,
+  // before the 8 s-per-star escape timer could bank. Three cars at 3 stars
+  // still surround and ram the player; 4-5 stars still field the full four.
+  const wantCars = state.wanted >= 1 ? Math.min(state.wanted, 4) : 0;
   const policeCars = state.world.cars.filter((c) => c.kind === 'police' && c.health > 0);
   if (state.wanted === 0) {
     if (policeCars.length || state.world.peds.some((p) => p.cop)) clearPolice();
@@ -324,12 +329,14 @@ function updatePolice(dt) {
         // 9/s per cop destroyed the car in ~10 s of contact, so a
         // 3-star escape that must last 30-60 s was a DPS race the car
         // usually lost. 5/s still lost it in ~11 s once two or more cops
-        // piled on (100 -> 76 -> 16 HP), because the ram slowdown keeps
-        // them glued while the damage stacks. 2/s per cop punishes being
-        // rammed (a lone cop still kills a 100 HP car in 50 s of contact)
-        // but lets a chase be survived by outrunning the cops on the
-        // straights — the wreck, not the chase, was the unfair part.
-        state.car.health -= 2 * dt;
+        // piled on (100 -> 76 -> 16 HP), and even 2/s still killed it in
+        // ~11 s of driving: four cops in continuous contact deal 8/s, so
+        // the car dies in 12 s while the escape needs 30-60 s. 1/s per cop
+        // punishes being rammed (a lone cop still kills a 100 HP car in
+        // 100 s of contact) but lets a chase be survived by outrunning
+        // the cops on the straights — the wreck, not the chase, was the
+        // unfair part.
+        state.car.health -= 1 * dt;
         // The ram slowdown is the other half of the ram, and cutting the
         // damage alone left it gluing the cops to the car: at 0.8/s per
         // cop in contact, two cops dragged the player's equilibrium speed
