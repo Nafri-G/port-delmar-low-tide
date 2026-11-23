@@ -516,6 +516,9 @@ function updateCar(dt) {
     state.money -= 100;
     car.health = 100;
     state.repairedAt = true;
+    // Persist the spend: without this, reloading after a repair
+    // restores the pre-repair money and the $100 comes back.
+    saveGame();
     notify('GARAGE REPAIR — $100 / Good as new');
     audio.play('pickup');
   } else if (Math.hypot(car.x - garage.x, car.y - garage.y) >= 120) {
