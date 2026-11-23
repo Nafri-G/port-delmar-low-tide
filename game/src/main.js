@@ -574,9 +574,13 @@ function updateCar(dt) {
       // blocks all movement forever — the car sat wedged at speed ~0,
       // turning in place, for the rest of the escape. moveEntity slides
       // along walls and stops at solid, so the push can never clip the
-      // car into a trap.
+      // car into a trap. The push is 2 px/frame, not 6: at 6 the cops
+      // shoved the player car sideways faster than it could steer back to
+      // the road centre, pinning it on the north sidewalk (y~1700) where
+      // it ran over pedestrians and climbed 3 -> 5 stars in the first 10 s.
+      // 2 px still separates overlapping cars in ~0.3 s.
       const push = Math.atan2(car.y - other.y, car.x - other.x);
-      moveEntity(state.world, car, Math.cos(push) * 6, Math.sin(push) * 6, 15);
+      moveEntity(state.world, car, Math.cos(push) * 2, Math.sin(push) * 2, 15);
     }
   }
   // Running down a pedestrian is a crime, and it is felt — but only if the
