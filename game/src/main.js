@@ -317,9 +317,14 @@ function updatePolice(dt) {
     // player's 310, a 6 m/s margin: the cops never fell behind, so they
     // re-acquired line of sight before the 8 s escape timer could ever
     // complete and rammed the car to death mid-escape. 230 + 15/wanted
-    // gives a real speed margin at 3 stars (275 vs 310) while 5 stars
-    // (305) stays nearly as fast as the player, as max heat should be.
-    const top = 230 + state.wanted * 15;
+    // (275 at 3 stars) still matched the player closely enough that, at
+    // 4-5 stars after the autopilot clipped two pedestrians, the cops kept
+    // line of sight for the whole chase and the timer banked ~4 s in 38 s.
+    // 200 + 12/wanted gives a real speed margin at every level (236 at 3
+    // stars, 260 at 5) while 5 stars (260) stays the fastest heat, as max
+    // heat should be — the player outruns the cops on the straights, but
+    // a driver who stops, wrecks, or drives into a pack still gets caught.
+    const top = 200 + state.wanted * 12;
     car.speed += ((dist > 70 ? top : top * 0.55) - car.speed) * Math.min(1, dt * 1.6);
     const hit = moveEntity(state.world, car, Math.cos(car.angle) * car.speed * dt, Math.sin(car.angle) * car.speed * dt, 15);
     if (hit) { car.speed *= 0.4; car.angle += 0.3; }
