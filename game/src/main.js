@@ -510,14 +510,24 @@ function updateCar(dt) {
   }
   const before = car.speed;
   const hit = moveEntity(state.world, car, Math.cos(car.angle) * car.speed * dt, Math.sin(car.angle) * car.speed * dt, 15);
+  // Crash damage is rate-limited to one event per 0.5 s (car._crashT): the
+  // wall and traffic damage below used to fire EVERY frame while the car
+  // ground against a wall or a traffic car at speed, and the friction
+  // model (which keeps the speed up during contact, so the car can slide
+  // out) let the car sit above the damage threshold for frames on end —
+  // the car lost ~93 HP in 2 s. One crash costs HP once; grinding does not
+  // insta-kill. The bounce, friction and push still apply every frame.
   if (hit && Math.abs(before) > 120) {
     // A high-speed wall smash still hurts, but the old 0.12 factor took
     // ~19 HP off a 280 m/s clip — and the escape autopilot clips a corner
     // on nearly every turn, so wall damage alone killed the car in ~20 s.
     // 0.06 keeps a real penalty for smashing a wall at speed without making
     // corner clips a death sentence.
-    car.health -= (Math.abs(before) - 120) * 0.06;
-    if (Math.abs(before) > 200) state.player.health -= (Math.abs(before) - 200) * 0.05;
+    if (state.elapsed - (car._crashT || 0) > 0.5) {
+      car.health -= (Math.abs(before) - 120) * 0.06;
+      if (Math.abs(before) > 200) state.player.health -= (Math.abs(before) - 200) * 0.05;
+      car._crashT = state.elapsed;
+    }
     audio.play('crash');
     burst(car.x, car.y, '#ffcd61', 10, 140);
     car.speed *= -0.25;
@@ -542,9 +552,10 @@ function updateCar(dt) {
       // of driving and making the 3-star escape unwinnable even though the
       // ram DoT itself was survivable. Police contact still slows the car
       // and shoves it; only the crash tick is skipped for them.
-      if (other.kind !== 'police' && Math.abs(car.speed) > 90) {
+      if (other.kind !== 'police' && Math.abs(car.speed) > 90 && state.elapsed - (car._crashT || 0) > 0.5) {
         car.health -= 6;
         other.health -= 4;
+        car._crashT = state.elapsed;
         audio.play('crash');
         burst(car.x, car.y, '#ffcd61', 8, 120);
       }
