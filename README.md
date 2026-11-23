@@ -6,6 +6,8 @@
 
 An original top-down open-world crime game set in a sunlit coastal city. Explore Port Delmar on foot, steal and drive cars, work for three waterfront locals, and escape police patrols. Procedural canvas art and synthesized audio run entirely from local files with no libraries.
 
+The police pursuit is tuned so the mission 3 escape is winnable: cops steer at where you were 1.5 s ago instead of cutting across blocks, and a driver who keeps moving and breaks line of sight loses a star every 8 s unseen.
+
 ## Run it
 
 ```sh

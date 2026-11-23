@@ -3,6 +3,8 @@
 // playtested against: swapping it (e.g. for mulberry32) rebuilds a
 // different city for the same seed, and the new layout wedges the escape
 // route the game was validated on. Keep this algorithm.
+// The seed is fixed at 1 for the shipped game, so every player gets the
+// same city, the same mission points and the same escape route.
 export function createRandom(seed = 1) {
   let state = Number(seed) >>> 0;
   return () => {

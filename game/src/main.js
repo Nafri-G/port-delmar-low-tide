@@ -81,7 +81,7 @@ function newState() {
     car: null,
     camera: { x: MISSION_POINTS.garage.x, y: MISSION_POINTS.garage.y, zoom: 1 },
     money: 250,
-    wanted: 0, escape: 0, inSight: false, bust: 0,
+    wanted: 0, escape: 0, inSight: false, bust: 0, trail: [],
     bullets: [], particles: [],
     elapsed: 0, screen: 'title',
     mission: -1, stage: 0,
@@ -178,7 +178,7 @@ function startMission(index) {
 function restoreCourier() {
   const courier = state.world.cars.find((c) => c.id === 'courier');
   if (!courier) return;
-  courier.health = 100;
+  courier.health = CAR.maxHealth;
   courier.x = MISSION_POINTS.courier.x;
   courier.y = MISSION_POINTS.courier.y;
   courier.angle = Math.PI / 2;
@@ -290,6 +290,20 @@ function addWanted(n) {
   if (state.wanted > 0) notify(`WANTED LEVEL ${state.wanted} / The police are coming`);
 }
 
+// The focus position as of `lag` seconds ago, from the trail. The cops
+// steer here: a stale target makes them follow the player's arc instead
+// of cutting the chord across a block, so a driver who turns hard opens a
+// real gap. Sight, ram and speed still use the live position, so a cop
+// that does reach the player still sees and rams them.
+function laggedPos(lag) {
+  const target = state.elapsed - lag;
+  const trail = state.trail;
+  for (let i = trail.length - 1; i >= 0; i--) {
+    if (trail[i].t <= target) return trail[i];
+  }
+  return trail.length ? trail[0] : focusPos();
+}
+
 function updatePolice(dt) {
   const pos = focusPos();
   // One police car per wanted star, up to four: at 3 stars the escape used
@@ -297,14 +311,22 @@ function updatePolice(dt) {
   // each — plus wall and traffic hits killed the car in ~11 s of driving,
   // before the 8 s-per-star escape timer could bank. Three cars at 3 stars
   // still surround and ram the player; 4-5 stars still field the full four.
-  const wantCars = state.wanted >= 1 ? Math.min(state.wanted, 4) : 0;
+  // Two cars at 3 stars, not three: the escape timer only banks when NO
+  // cop sees the player, and with three cars plus two on-foot cops (five
+  // pairs of eyes) at least one always had line of sight, so the timer
+  // froze for 25+ s at a time and the car wrecked before it could bank the
+  // 16 s. Two cars and one on-foot cop at 3 stars still chase hard and ram,
+  // but a driver who turns a corner can actually get all of them off their
+  // tail at once. 5 stars still fields three cars, so max heat stays the
+  // hardest. The busted test uses a police car, so it is unaffected.
+  const wantCars = state.wanted >= 1 ? Math.min(Math.max(state.wanted - 1, 1), 3) : 0;
   const policeCars = state.world.cars.filter((c) => c.kind === 'police' && c.health > 0);
   if (state.wanted === 0) {
     if (policeCars.length || state.world.peds.some((p) => p.cop)) clearPolice();
     return;
   }
   while (policeCars.length < wantCars) policeCars.push(spawnPoliceCar());
-  const wantCops = state.wanted >= 2 ? Math.min(state.wanted - 1, 3) : 0;
+  const wantCops = state.wanted >= 3 ? Math.min(state.wanted - 2, 2) : 0;
   const cops = state.world.peds.filter((p) => p.cop && p.health > 0);
   while (cops.length < wantCops) { spawnCop(); cops.push(state.world.peds[state.world.peds.length - 1]); }
 
@@ -313,7 +335,18 @@ function updatePolice(dt) {
     if (car.controlled) continue;
     const dx = pos.x - car.x, dy = pos.y - car.y;
     const dist = Math.hypot(dx, dy);
-    const target = Math.atan2(dy, dx);
+    // Pursuit lag: steer at where the player was 1.5 s ago (laggedPos), so
+    // the cops follow the player's arc instead of cutting the chord across
+    // a block. When the player turns, the stale point is still on the old
+    // straight, so the cop keeps driving straight and has to come around
+    // the block — a driver who turns hard opens a real gap. The guard
+    // below stops the lag from turning a cop around: if the stale point
+    // is behind the cop while the live player is ahead (a cop close
+    // behind on a straight), the cop aims at the live player instead.
+    // Sight, ram and speed below still use the live position.
+    const aim = laggedPos(1.5);
+    const useLag = (aim.x - car.x) * dx + (aim.y - car.y) * dy >= 0;
+    const target = Math.atan2((useLag ? aim.y : pos.y) - car.y, (useLag ? aim.x : pos.x) - car.x);
     let diff = target - car.angle;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
@@ -333,49 +366,48 @@ function updatePolice(dt) {
     // player's 310, a 6 m/s margin: the cops never fell behind, so they
     // re-acquired line of sight before the 8 s escape timer could ever
     // complete and rammed the car to death mid-escape. Successive cuts
-    // (230+15, 200+12, 180+10, 140+10) raised the first lap's banking to
-    // ~7.7 s, but the car still needs 16 s banked before it reaches the
-    // last waypoint and orbits it — the cops' beeline shortcuts across
-    // the blocks kept closing the gap at every turn. 120 + 10/wanted
-    // gives a decisive margin at every level (150 at 3 stars, 170 at 5)
-    // while 5 stars stays the fastest heat, as max heat should be — the
-    // player outruns the cops on the straights, but a driver who stops,
-    // wrecks, or drives into a pack still gets caught.
-    const top = 120 + state.wanted * 10;
+    // (230+15, 200+12, 180+10, 140+10, 120+10) raised the first lap's
+    // banking, but the car still could not open a gap: its AVERAGE speed
+    // is ~150-180 (it slows for every corner and every ram), so against
+    // cops at 150 the gap opened at 0-30 m/s and never reached the 250 m
+    // sight range before the next corner. 100 + 10/wanted (130 at 3 stars,
+    // 150 at 5) gives a real margin at every level while 5 stars stays the
+    // fastest heat, as max heat should be — the player outruns the cops on
+    // the straights, but a driver who stops, wrecks, or drives into a pack
+    // still gets caught.
+    const top = 100 + state.wanted * 10;
     car.speed += ((dist > 70 ? top : top * 0.55) - car.speed) * Math.min(1, dt * 1.6);
     const hit = moveEntity(state.world, car, Math.cos(car.angle) * car.speed * dt, Math.sin(car.angle) * car.speed * dt, 15);
     if (hit) { car.speed *= 0.4; car.angle += 0.3; }
-    // Sight range is 300 m, not 420: at 420 the cops kept line of sight
+    // Sight range is 200 m, not 420: at 420 the cops kept line of sight
     // for the whole chase (they match the player's speed at high wanted),
     // so the escape timer banked ~5 s in 30 s and the mission was
     // unwinnable. At 300 the player banks time by opening a real gap on a
     // straight or breaking line of sight around a block, while a driver who
-    // stops or dawdles is still spotted at once — the cops close 300 m in
-    // about a second.
-    if (dist < 300 && lineOfSight(state.world, car, pos)) seen = true;
+    // stops or dawdles is still spotted at once. At 250 the gap opens a
+    // little sooner around a corner. At 200 the car only needs to open a
+    // 200 m gap (not 250) to break sight on a straight, which its speed
+    // margin now allows, while a driver who stops or dawdles is still
+    // spotted at once. The 1.5 s pursuit lag already makes the cops follow
+    // the arc, and the shorter sight range lets the line of sight actually
+    // break when the car gets around the block, instead of the cops
+    // re-acquiring through the gap before the timer can bank.
+    if (dist < 200 && lineOfSight(state.world, car, pos)) seen = true;
     if (dist < 46) {
       if (state.car) {
-        // 9/s per cop destroyed the car in ~10 s of contact, so a
-        // 3-star escape that must last 30-60 s was a DPS race the car
-        // usually lost. 5/s still lost it in ~11 s once two or more cops
-        // piled on (100 -> 76 -> 16 HP), and even 2/s still killed it in
-        // ~11 s of driving: four cops in continuous contact deal 8/s, so
-        // the car dies in 12 s while the escape needs 30-60 s. 1/s per cop
-        // punishes being rammed (a lone cop still kills a 100 HP car in
-        // 100 s of contact) but lets a chase be survived by outrunning
-        // the cops on the straights — the wreck, not the chase, was the
-        // unfair part.
-        state.car.health -= 1 * dt;
-        // The ram slowdown is the other half of the ram, and cutting the
-        // damage alone left it gluing the cops to the car: at 0.8/s per
-        // cop in contact, two cops dragged the player's equilibrium speed
-        // to ~119 m/s — below the cops' close-range 151 — so once two cops
-        // touched the car they never let go, the car never opened a gap,
-        // and the escape timer never banked a second. 0.35/s per cop lets
-        // the player pull away from one or two cops (equilibrium ~271)
-        // while four cops piled on still pin the car (~136), so a driver
-        // who stops or drives into a pack still gets wrecked.
-        state.car.speed *= (1 - 0.35 * dt);
+        // Ram damage and slowdown are small per cop on purpose: the cops
+        // are in contact for much of a chase, so a per-cop rate that looks
+        // tiny on paper still adds up — at 1/s and 0.35/s, three cops in
+        // contact for 40 s took ~120 HP and dragged the car to a crawl,
+        // so the car wrecked before the 16 s escape could ever bank and
+        // the chase became a DPS race the car always lost. At 0.5/s and
+        // 0.2/s a ram still costs health and speed (a lone cop still kills
+        // a 100 HP car in 200 s of contact, and three cops still pin a car
+        // that stops or drives into a pack), but a driver who keeps moving
+        // and outruns the cops on the straights can survive the chase —
+        // the wreck, not the chase, was the unfair part.
+        state.car.health -= 0.5 * dt;
+        state.car.speed *= (1 - 0.2 * dt);
         if (Math.random() < dt * 2) { audio.play('crash'); burst(car.x, car.y, '#ffcd61', 4, 80); }
       } else {
         state.bust += 45 * dt;
@@ -387,7 +419,7 @@ function updatePolice(dt) {
     const dist = Math.hypot(dx, dy);
     cop.angle = Math.atan2(dy, dx);
     moveEntity(state.world, cop, (dx / (dist || 1)) * 95 * dt, (dy / (dist || 1)) * 95 * dt, 7);
-    if (dist < 300 && lineOfSight(state.world, cop, pos)) seen = true;
+    if (dist < 200 && lineOfSight(state.world, cop, pos)) seen = true;
     if (dist < 30 && !state.car) state.bust += 60 * dt;
   }
   state.inSight = seen;
@@ -562,13 +594,18 @@ function updateCar(dt) {
   for (const other of state.world.cars) {
     if (other === car || other.health <= 0) continue;
     if (Math.hypot(other.x - car.x, other.y - car.y) < 38) {
-      // Police rams have their own damage (the 2/s ram in updatePolice):
+      // Police rams have their own damage (the 0.5/s ram in updatePolice):
       // the 6 HP crash tick below fired every frame the player drove at
-      // >90 m/s in contact with a ramming cop, shredding the car in ~11 s
+      // >90 m/s in contact with a traffic car, shredding the car in ~11 s
       // of driving and making the 3-star escape unwinnable even though the
       // ram DoT itself was survivable. Police contact still slows the car
-      // and shoves it; only the crash tick is skipped for them.
-      if (other.kind !== 'police' && Math.abs(car.speed) > 90 && state.elapsed - (car._crashT || 0) > 0.5) {
+      // and shoves it; only the crash tick is skipped for them. The tick
+      // now needs speed > 120 (the same bar as a wall smash): a car wedged
+      // against a building at ~90 m/s sat overlapping a traffic car and
+      // took 6 HP every 0.5 s — 42 HP in 5 s — while it could not move, so
+      // a wedge became a death sentence before the reverse could free it.
+      // Below 120 a traffic bump is friction, not a crash.
+      if (other.kind !== 'police' && Math.abs(car.speed) > 120 && state.elapsed - (car._crashT || 0) > 0.5) {
         car.health -= 6;
         other.health -= 4;
         car._crashT = state.elapsed;
@@ -629,9 +666,9 @@ function updateCar(dt) {
   }
   // Garage repairs: park the car by the garage and it is fixed for $100.
   const garage = MISSION_POINTS.garage;
-  if (Math.hypot(car.x - garage.x, car.y - garage.y) < 80 && car.health < 100 && state.money >= 100 && !state.repairedAt) {
+  if (Math.hypot(car.x - garage.x, car.y - garage.y) < 80 && car.health < CAR.maxHealth && state.money >= 100 && !state.repairedAt) {
     state.money -= 100;
-    car.health = 100;
+    car.health = CAR.maxHealth;
     state.repairedAt = true;
     // Persist the spend: without this, reloading after a repair
     // restores the pre-repair money and the $100 comes back.
@@ -692,6 +729,7 @@ function resetAfterTrouble() {
   state.wanted = 0;
   state.bust = 0;
   state.escape = 0;
+  state.trail = [];
   clearPolice();
   restoreCourier();
   state.bullets = [];
@@ -736,6 +774,12 @@ function step(dt) {
   if (state.dialogueT > 0) { state.dialogueT -= dt; if (state.dialogueT <= 0) state.dialogue = ''; }
   if (state.toastT > 0) { state.toastT -= dt; if (state.toastT <= 0) state.toast = ''; }
   const pos = focusPos();
+  // Position trail for pursuit lag: police cars steer at where the player
+  // was ~1 s ago, not the live position. Recorded at the start of each
+  // step, so the trail is a step-boundary history. Only the last ~2 s are
+  // kept; the lag reads at most 1 s back.
+  state.trail.push({ x: pos.x, y: pos.y, t: state.elapsed });
+  while (state.trail.length > 0 && state.trail[0].t < state.elapsed - 2) state.trail.shift();
   updateWorld(state.world, dt, pos);
   if (state.car) updateCar(dt);
   else updatePlayer(dt);

@@ -134,7 +134,7 @@ export function createWorld(seed = 1) {
   // the car needing to drive south, so an east-facing start forces a U-turn
   // straight into the beachfront building at (2145,1608).
   world.cars.push({
-    id: 'courier', x: 1440, y: 1072, angle: Math.PI / 2, speed: 0, health: 100,
+    id: 'courier', x: 1440, y: 1072, angle: Math.PI / 2, speed: 0, health: CAR.maxHealth,
     color: '#efb746', kind: 'civilian', parked: true, stolen: true,
     controlled: false, turnCooldown: 0,
   });
@@ -296,14 +296,18 @@ export function updateWorld(world, dt, target) {
     // m/s ran them down, and every hit added a wanted star (and reset the
     // escape bank) in the middle of the mission 3 escape. Fleeing is radial
     // (away from the player), so a ped on the sidewalk runs into the block,
-    // off the car's line. The 200 m radius gives them ~1 s to clear it.
-    if (target && Math.hypot(ped.x - target.x, ped.y - target.y) < 200) ped.panic = Math.max(ped.panic, 1);
+    // off the car's line. The radius is 300 m and the flee speed 120: at
+    // 200 m / 80 the car (250 m/s) reached a ped in 0.8 s and the ped only
+    // cleared 64 m, so a car clipping a corner still ran peds down and
+    // re-escalated the escape from 2 stars back to 3. At 300 m the ped has
+    // 1.2 s and clears ~144 m before the car arrives.
+    if (target && Math.hypot(ped.x - target.x, ped.y - target.y) < 300) ped.panic = Math.max(ped.panic, 1);
     let dx = 0;
     let dy = 0;
     if (ped.panic > 0 && target) {
       const angle = Math.atan2(ped.y - target.y, ped.x - target.x);
-      dx = Math.cos(angle) * 80;
-      dy = Math.sin(angle) * 80;
+      dx = Math.cos(angle) * 120;
+      dy = Math.sin(angle) * 120;
       ped.angle = angle;
     } else {
       const v = PEDESTRIAN.speed * ped.direction;

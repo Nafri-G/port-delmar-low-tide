@@ -1,53 +1,119 @@
-// Continuous movement and one-shot actions are deliberately separate.
+// Keyboard, mouse and touch input. Movement keys are read continuously
+// (held), while actions are read once (pressed) so a single key press fires
+// a single action even if the key stays down.
+//
+// The pointer is reported in the game's virtual 1280x720 coordinates, so
+// aiming and menu clicks work at any window size. Touch uses the same
+// virtual coordinates, so the on-screen stick and buttons feed the same
+// movement and action paths as the keyboard and mouse.
 export function createInput(canvas) {
-  const held = new Set();
-  const pressed = new Set();
-  const pointer = {x:640,y:360,down:false,clicked:false};
-  const touch = {x:0,y:0,run:false,fire:false};
-  const recognized = /^(Key[WASDEPM]|Arrow(Up|Down|Left|Right)|Shift(Left|Right)|Enter|Space|Escape|Digit[123])$/;
-  window.addEventListener('keydown', e => {
-    if (!recognized.test(e.code)) return;
-    e.preventDefault();
-    if (!e.repeat) pressed.add(e.code);
-    held.add(e.code);
+  const heldKeys = new Set();
+  const pressedKeys = new Set();
+  const pointer = { x: 640, y: 360, down: false, clicked: false };
+  const touch = { x: 0, y: 0, run: false, fire: false };
+
+  // Only game keys are captured; everything else (F5, browser shortcuts)
+  // is left alone.
+  const gameKey = /^(Key[WASDEPM]|Arrow(Up|Down|Left|Right)|Shift(Left|Right)|Enter|Space|Escape|Digit[123])$/;
+
+  window.addEventListener('keydown', (event) => {
+    if (!gameKey.test(event.code)) return;
+    event.preventDefault();
+    if (!event.repeat) pressedKeys.add(event.code);
+    heldKeys.add(event.code);
   });
-  window.addEventListener('keyup', e => held.delete(e.code));
-  window.addEventListener('blur', () => {held.clear();pointer.down=false;touch.x=touch.y=0;});
-  function position(e) {
-    const box=canvas.getBoundingClientRect();
-    pointer.x=(e.clientX-box.left)*1280/box.width;
-    pointer.y=(e.clientY-box.top)*720/box.height;
+  window.addEventListener('keyup', (event) => heldKeys.delete(event.code));
+  window.addEventListener('blur', () => {
+    heldKeys.clear();
+    pointer.down = false;
+    touch.x = 0;
+    touch.y = 0;
+  });
+
+  function trackPointer(event) {
+    const box = canvas.getBoundingClientRect();
+    pointer.x = ((event.clientX - box.left) * 1280) / box.width;
+    pointer.y = ((event.clientY - box.top) * 720) / box.height;
   }
-  canvas.addEventListener('pointermove', position);
-  canvas.addEventListener('pointerdown', e => {position(e);pointer.down=true;pointer.clicked=true;canvas.focus();});
-  window.addEventListener('pointerup', () => {pointer.down=false;});
-  canvas.addEventListener('contextmenu', e => e.preventDefault());
-  const stick=document.getElementById('stick');
-  const nub=document.getElementById('nub');
-  let stickId=null;
-  function joystick(e) {
-    const b=stick.getBoundingClientRect();
-    const dx=e.clientX-b.left-b.width/2,dy=e.clientY-b.top-b.height/2;
-    const length=Math.max(45,Math.hypot(dx,dy));
-    touch.x=dx/length;touch.y=dy/length;
-    nub.style.transform=`translate(${touch.x*36}px,${touch.y*36}px)`;
+  canvas.addEventListener('pointermove', trackPointer);
+  canvas.addEventListener('pointerdown', (event) => {
+    trackPointer(event);
+    pointer.down = true;
+    pointer.clicked = true;
+    canvas.focus();
+  });
+  window.addEventListener('pointerup', () => { pointer.down = false; });
+  canvas.addEventListener('contextmenu', (event) => event.preventDefault());
+
+  // Touch joystick: a virtual stick in the bottom-left corner.
+  const stick = document.getElementById('stick');
+  const nub = document.getElementById('nub');
+  let stickPointer = null;
+  function moveStick(event) {
+    const box = stick.getBoundingClientRect();
+    const dx = event.clientX - box.left - box.width / 2;
+    const dy = event.clientY - box.top - box.height / 2;
+    const reach = Math.max(45, Math.hypot(dx, dy));
+    touch.x = dx / reach;
+    touch.y = dy / reach;
+    nub.style.transform = `translate(${touch.x * 36}px, ${touch.y * 36}px)`;
   }
-  stick.addEventListener('pointerdown', e => {stickId=e.pointerId;stick.setPointerCapture(e.pointerId);joystick(e);});
-  stick.addEventListener('pointermove', e => {if(e.pointerId===stickId)joystick(e);});
-  const release=()=>{stickId=null;touch.x=touch.y=0;nub.style.transform='';};
-  stick.addEventListener('pointerup',release);stick.addEventListener('pointercancel',release);
-  document.getElementById('touch-enter').addEventListener('pointerdown', e=>{e.preventDefault();pressed.add('KeyE');});
-  for (const [id,key] of [['touch-run','run'],['touch-shoot','fire']]) {
-    const button=document.getElementById(id);
-    button.addEventListener('pointerdown', e=>{e.preventDefault();button.setPointerCapture(e.pointerId);touch[key]=true;});
-    button.addEventListener('pointerup',()=>touch[key]=false);
-    button.addEventListener('pointercancel',()=>touch[key]=false);
+  function releaseStick() {
+    stickPointer = null;
+    touch.x = 0;
+    touch.y = 0;
+    nub.style.transform = '';
   }
+  stick.addEventListener('pointerdown', (event) => {
+    stickPointer = event.pointerId;
+    stick.setPointerCapture(event.pointerId);
+    moveStick(event);
+  });
+  stick.addEventListener('pointermove', (event) => {
+    if (event.pointerId === stickPointer) moveStick(event);
+  });
+  stick.addEventListener('pointerup', releaseStick);
+  stick.addEventListener('pointercancel', releaseStick);
+
+  // Touch buttons: ENTER acts like pressing E once; RUN and FIRE are held.
+  document.getElementById('touch-enter').addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    pressedKeys.add('KeyE');
+  });
+  for (const [id, flag] of [['touch-run', 'run'], ['touch-shoot', 'fire']]) {
+    const button = document.getElementById(id);
+    button.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      button.setPointerCapture(event.pointerId);
+      touch[flag] = true;
+    });
+    button.addEventListener('pointerup', () => { touch[flag] = false; });
+    button.addEventListener('pointercancel', () => { touch[flag] = false; });
+  }
+
   return {
-    pointer,touch,
-    down:(...codes)=>codes.some(code=>held.has(code)),
-    take(code){const yes=pressed.has(code);pressed.delete(code);return yes;},
-    axes(){return {x:Math.max(-1,Math.min(1,(held.has('KeyD')||held.has('ArrowRight')?1:0)-(held.has('KeyA')||held.has('ArrowLeft')?1:0)+touch.x)),y:Math.max(-1,Math.min(1,(held.has('KeyS')||held.has('ArrowDown')?1:0)-(held.has('KeyW')||held.has('ArrowUp')?1:0)+touch.y))};},
-    endFrame(){pressed.clear();pointer.clicked=false;}
+    pointer,
+    touch,
+    down(...codes) {
+      return codes.some((code) => heldKeys.has(code));
+    },
+    take(code) {
+      const wasPressed = pressedKeys.has(code);
+      pressedKeys.delete(code);
+      return wasPressed;
+    },
+    axes() {
+      const left = heldKeys.has('KeyA') || heldKeys.has('ArrowLeft');
+      const right = heldKeys.has('KeyD') || heldKeys.has('ArrowRight');
+      const up = heldKeys.has('KeyW') || heldKeys.has('ArrowUp');
+      const downKey = heldKeys.has('KeyS') || heldKeys.has('ArrowDown');
+      const x = Math.max(-1, Math.min(1, (right ? 1 : 0) - (left ? 1 : 0) + touch.x));
+      const y = Math.max(-1, Math.min(1, (downKey ? 1 : 0) - (up ? 1 : 0) + touch.y));
+      return { x, y };
+    },
+    endFrame() {
+      pressedKeys.clear();
+      pointer.clicked = false;
+    },
   };
 }
