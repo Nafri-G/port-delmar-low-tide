@@ -156,10 +156,28 @@ function applyStage() {
 function startMission(index) {
   state.mission = index;
   state.stage = 0;
+  if (index === 1) restoreCourier();
   const mission = MISSIONS[index];
   applyStage();
   say(mission.intro, 5);
   announce(`Mission: ${mission.giver}. ${state.objective}`);
+}
+
+// Mission 2's Sunrunner must always be drivable when the mission starts or
+// after a busted/wasted retry: a wrecked courier soft-locks the mission
+// (no other courier exists, cars never respawn). Restores it to its
+// pristine parked state (stolen:true so taking it adds no wanted level).
+function restoreCourier() {
+  const courier = state.world.cars.find((c) => c.id === 'courier');
+  if (!courier) return;
+  courier.health = 100;
+  courier.x = MISSION_POINTS.courier.x;
+  courier.y = MISSION_POINTS.courier.y;
+  courier.angle = 0;
+  courier.speed = 0;
+  courier.parked = true;
+  courier.controlled = false;
+  courier.stolen = true;
 }
 
 function completeMission() {
@@ -186,7 +204,12 @@ function updateMission() {
         applyStage();
         notify('OBJECTIVE UPDATED / Follow the gold marker');
         if (mission.stages[state.stage].kind === 'escape') {
-          addWanted(3);
+          // Scripted heat: set it directly. addWanted() returns early during
+          // the 2 s crime cooldown, which would silently skip the forced
+          // 3-star escape if the player just committed a crime.
+          state.wanted = 3;
+          state.escape = 0;
+          notify('WANTED LEVEL 3 / The police are coming');
           say('Ivo Santos: Dispatch heard the deal. Lose them, then get to the safe house.', 5);
         }
       } else {
@@ -304,7 +327,13 @@ function updatePolice(dt) {
   if (!seen && policeCars.length + cops.length > 0) {
     state.bust = Math.max(0, state.bust - 30 * dt);
     state.escape += dt;
-    if (state.escape > 14) {
+    // 8 s of staying unseen loses a star. Playtested at 14 s: the escape
+    // timer never accumulated once in four driving attempts — police cars
+    // (304) nearly match the player car (310) and on-foot cops stay glued,
+    // so `seen` is true almost the whole chase. 8 s keeps the escape a real
+    // challenge (two stars still need 16 s of evasion) while letting a good
+    // driver bank a star by breaking line-of-sight around a block.
+    if (state.escape > 8) {
       state.wanted -= 1;
       state.escape = 0;
       notify(state.wanted > 0 ? `YOU LOST A STAR / Wanted level ${state.wanted}` : 'HEAT GONE / You slipped away');
@@ -503,6 +532,7 @@ function resetAfterTrouble() {
   state.bust = 0;
   state.escape = 0;
   clearPolice();
+  restoreCourier();
   state.bullets = [];
   state.player.x = MISSION_POINTS.garage.x;
   state.player.y = MISSION_POINTS.garage.y;

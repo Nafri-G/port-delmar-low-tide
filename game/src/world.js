@@ -40,7 +40,7 @@ export function createWorld(seed=1) {
     w.cars.push({id:`car-${i}`,x:horizontal?along:road+(angle>0?-offset:offset),y:horizontal?road+(angle===0?offset:-offset):along,angle,speed:parked?0:60+rng()*35,health:100,color:PAINT[i%PAINT.length],kind:'civilian',parked,stolen:false,controlled:false,turnCooldown:0});
   }
   Object.assign(w.cars[0],{x:505,y:392,angle:-Math.PI/2,parked:true,speed:0,color:'#e9b956'});
-  w.cars.push({id:'courier',x:1440,y:1072,angle:0,speed:0,health:100,color:'#efb746',kind:'civilian',parked:true,stolen:false,controlled:false,turnCooldown:0});
+  w.cars.push({id:'courier',x:1440,y:1072,angle:0,speed:0,health:100,color:'#efb746',kind:'civilian',parked:true,stolen:true,controlled:false,turnCooldown:0});
   for(let i=0;i<PEDESTRIAN.count;i++){
     const horizontal=i%2===0,road=160+320*((rng()*7)|0),along=30+rng()*2110,side=rng()<0.5?-58:58;
     const x=horizontal?along:road+side,y=horizontal?road+side:along;

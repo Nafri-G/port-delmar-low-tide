@@ -189,7 +189,7 @@ export function createRenderer(canvas){
     text(prompt,640,697,11,COLORS.paper,700,'center');text('P / PAUSE   M / '+(state.muted?'UNMUTE':'MUTE'),1258,705,9,'#dce0c9',600,'right');
     if(state.dialogue){rect(292,579,690,82,'#102d3bf2');rect(292,579,3,82,COLORS.gold);text('INCOMING / THE WATERFRONT',311,601,9,COLORS.gold,700);wrapText(state.dialogue,311,624,650,16,20);}
     if(state.toast){rect(333,111,610,33,'#102d3be8');text(state.toast,638,132,12,COLORS.mint,600,'center');}
-    if(state.bust>0){text('BUSTING '+Math.round(state.bust/4*100)+'%',640,520,18,COLORS.coral,700,'center');}
+    if(state.bust>0){text('BUSTING '+Math.round(state.bust)+'%',640,520,18,COLORS.coral,700,'center');}
   }
   function wrapText(value,x,y,width,size,lineHeight){
     const words=value.split(' ');let row='';c.font=`400 ${size}px Arial`;
