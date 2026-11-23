@@ -660,7 +660,18 @@ function handleButton(id) {
   else if (id === 'restart') resetAfterTrouble();
   else if (id === 'next') {
     if (state.completed.length < 3) { startMission(state.completed.length); state.screen = 'play'; }
-    else { state.screen = 'play'; applyStage(); }
+    else {
+      // All three jobs done: free roam. mission MUST go to -1 — without
+      // this it still points at the mission 3 escape stage, and the car
+      // is sitting inside the safe-house radius with wanted <= 1, so the
+      // first updateMission step re-completes mission 3: +$1000, a second
+      // 2 in `completed`, and the screen flips straight back to
+      // 'complete', trapping the player in a completion loop.
+      state.mission = -1;
+      state.stage = 0;
+      state.screen = 'play';
+      applyStage();
+    }
   }
 }
 
