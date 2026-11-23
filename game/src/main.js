@@ -518,7 +518,13 @@ function updateCar(dt) {
         audio.play('crash');
         burst(car.x, car.y, '#ffcd61', 8, 120);
       }
-      car.speed *= 0.55;
+      // Same split for the speed cut: the x0.55 below halved the player's
+      // speed every frame a cop stayed within 38 px, which was the real
+      // glue — with it, the player oscillated at ~55-90 m/s while the cops
+      // closed at 151, so they never let go and the escape timer never
+      // banked. Police contact now costs only the ram DoT + ram slowdown;
+      // traffic still halves the speed, as a crash should.
+      if (other.kind !== 'police') car.speed *= 0.55;
       // The separation push goes through moveEntity, not a raw position
       // change: a raw push could shove the car inside a building or past
       // the map edge, where every direction is solid and moveEntity then
