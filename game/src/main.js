@@ -323,10 +323,13 @@ function updatePolice(dt) {
       if (state.car) {
         // 9/s per cop destroyed the car in ~10 s of contact, so a
         // 3-star escape that must last 30-60 s was a DPS race the car
-        // usually lost. 5/s still punishes being rammed (20 s of
-        // contact from one cop kills a 100 HP car) but lets a chase
-        // be survived by outrunning the cops on the straights.
-        state.car.health -= 5 * dt;
+        // usually lost. 5/s still lost it in ~11 s once two or more cops
+        // piled on (100 -> 76 -> 16 HP), because the ram slowdown keeps
+        // them glued while the damage stacks. 2/s per cop punishes being
+        // rammed (a lone cop still kills a 100 HP car in 50 s of contact)
+        // but lets a chase be survived by outrunning the cops on the
+        // straights — the wreck, not the chase, was the unfair part.
+        state.car.health -= 2 * dt;
         state.car.speed *= (1 - 0.8 * dt);
         if (Math.random() < dt * 2) { audio.play('crash'); burst(car.x, car.y, '#ffcd61', 4, 80); }
       } else {
