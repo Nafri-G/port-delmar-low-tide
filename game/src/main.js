@@ -483,7 +483,15 @@ function updateCar(dt) {
     burst(car.x, car.y, '#ffcd61', 10, 140);
     car.speed *= -0.25;
   } else if (hit) {
-    car.speed *= 0.5;
+    // A car nosed into a building corner at a crawl used to lose half its
+    // speed every frame, so it crept at ~3 m/s and the wall-slide could
+    // never carry it around the corner: the mission 3 escape autopilot sat
+    // wedged at (1710,1701) for the whole 150 s. Below 40 m/s the wall
+    // just blocks movement (moveEntity already prevents penetration), so
+    // keep the speed and let the slide work — the car grinds around the
+    // corner instead of parking in it. Above 40 the old halving still
+    // stops the car; the >120 bounce with damage is untouched.
+    if (Math.abs(car.speed) > 40) car.speed *= 0.5;
   }
   // Traffic and parked cars are solid to the player car.
   for (const other of state.world.cars) {
@@ -507,9 +515,15 @@ function updateCar(dt) {
       moveEntity(state.world, car, Math.cos(push) * 6, Math.sin(push) * 6, 15);
     }
   }
-  // Running down a pedestrian is a crime, and it is felt.
+  // Running down a pedestrian is a crime, and it is felt — but only if the
+  // car is actually moving. A stationary or crawling car used to kill any
+  // pedestrian who walked into it and add a wanted star each time, so a car
+  // wedged against a building corner climbed 3 -> 5 stars while sitting
+  // still, with five police cars keeping it seen for the whole escape.
+  // Below 40 m/s the pedestrian just walks past; above it, the old
+  // run-over (kill + wanted + slowdown) still applies.
   for (const p of state.world.peds) {
-    if (p.health > 0 && !p.cop && Math.hypot(p.x - car.x, p.y - car.y) < 26) {
+    if (p.health > 0 && !p.cop && Math.abs(car.speed) > 40 && Math.hypot(p.x - car.x, p.y - car.y) < 26) {
       p.health = 0;
       p.panic = 1;
       for (const q of state.world.peds) if (Math.hypot(q.x - p.x, q.y - p.y) < 160) q.panic = 1;
