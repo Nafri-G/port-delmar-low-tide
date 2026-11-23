@@ -330,7 +330,16 @@ function updatePolice(dt) {
         // but lets a chase be survived by outrunning the cops on the
         // straights — the wreck, not the chase, was the unfair part.
         state.car.health -= 2 * dt;
-        state.car.speed *= (1 - 0.8 * dt);
+        // The ram slowdown is the other half of the ram, and cutting the
+        // damage alone left it gluing the cops to the car: at 0.8/s per
+        // cop in contact, two cops dragged the player's equilibrium speed
+        // to ~119 m/s — below the cops' close-range 151 — so once two cops
+        // touched the car they never let go, the car never opened a gap,
+        // and the escape timer never banked a second. 0.35/s per cop lets
+        // the player pull away from one or two cops (equilibrium ~271)
+        // while four cops piled on still pin the car (~136), so a driver
+        // who stops or drives into a pack still gets wrecked.
+        state.car.speed *= (1 - 0.35 * dt);
         if (Math.random() < dt * 2) { audio.play('crash'); burst(car.x, car.y, '#ffcd61', 4, 80); }
       } else {
         state.bust += 45 * dt;
