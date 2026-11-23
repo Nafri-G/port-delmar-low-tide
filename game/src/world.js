@@ -62,8 +62,15 @@ export function createWorld(seed = 1) {
         for (let b = 0; b < 2; b++) {
           const bw = 72 + rng() * 15;
           const bh = 68 + rng() * 20;
+          // Buildings are right-aligned in their cell so every building in
+          // a column shares the same east face (bx + a*103 + 92). If the
+          // east faces varied with the random width, vertically-adjacent
+          // buildings formed a lip: a car driving north in the gap east of
+          // them wedged into a 0.5 m pocket between the two east faces and
+          // could never move out. The RNG sequence is unchanged (bw is
+          // still drawn once per building); only the x formula differs.
           world.buildings.push({
-            x: bx + a * 103 + 5,
+            x: bx + a * 103 + 92 - bw,
             y: by + b * 103 + 5,
             w: bw,
             h: bh,
