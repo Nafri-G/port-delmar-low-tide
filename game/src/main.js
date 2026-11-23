@@ -361,9 +361,15 @@ function updatePolice(dt) {
       notify(state.wanted > 0 ? `YOU LOST A STAR / Wanted level ${state.wanted}` : 'HEAT GONE / You slipped away');
       if (state.wanted === 0) clearPolice();
     }
-  } else {
-    state.escape = 0;
   }
+  // No else-branch: when the player IS seen, the timer PAUSES (holds its
+  // value) instead of resetting to 0. Resetting threw away every brief
+  // line-of-sight break — a driver who broke away around a block, then got
+  // re-spotted, lost all banked time, so the 8 s threshold was unreachable
+  // whenever four cops kept at least one pair of eyes on the car. Pausing
+  // keeps the 8 s per star and the wanted<=1 requirement, and a player who
+  // just sits still still gets busted: seen stays true, the timer never
+  // grows, and the bust meter fills.
   if (state.bust >= 100) {
     state.bust = 0;
     state.wanted = 0;
