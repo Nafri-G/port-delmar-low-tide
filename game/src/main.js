@@ -329,16 +329,16 @@ function updatePolice(dt) {
     // Police top speed was 250 + 18/wanted (304 at 3 stars) against the
     // player's 310, a 6 m/s margin: the cops never fell behind, so they
     // re-acquired line of sight before the 8 s escape timer could ever
-    // complete and rammed the car to death mid-escape. 230 + 15/wanted
-    // (275) and then 200 + 12/wanted (236) still matched the player
+    // complete and rammed the car to death mid-escape. Successive cuts
+    // (230+15, 200+12, 180+10) still left the cops matching the player
     // closely enough that, on the escape loop's short straights, the player
     // opened ~130 m per straight while the cops closed it at every turn —
-    // the timer banked ~1-5 s in 30-40 s. 180 + 10/wanted gives a real
-    // margin at every level (210 at 3 stars, 230 at 5) while 5 stars stays
+    // the timer banked ~1-5 s in 30-40 s. 140 + 10/wanted gives a real
+    // margin at every level (170 at 3 stars, 190 at 5) while 5 stars stays
     // the fastest heat, as max heat should be — the player outruns the
     // cops on the straights, but a driver who stops, wrecks, or drives
     // into a pack still gets caught.
-    const top = 180 + state.wanted * 10;
+    const top = 140 + state.wanted * 10;
     car.speed += ((dist > 70 ? top : top * 0.55) - car.speed) * Math.min(1, dt * 1.6);
     const hit = moveEntity(state.world, car, Math.cos(car.angle) * car.speed * dt, Math.sin(car.angle) * car.speed * dt, 15);
     if (hit) { car.speed *= 0.4; car.angle += 0.3; }

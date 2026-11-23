@@ -290,6 +290,14 @@ export function updateWorld(world, dt, target) {
       continue;
     }
     ped.panic = Math.max(0, ped.panic - dt);
+    // A pedestrian who sees the player (or the player's car) bearing down
+    // on them panics and flees — before this, peds only panicked when a
+    // nearby pedestrian died, so they strolled on while a car doing 200
+    // m/s ran them down, and every hit added a wanted star (and reset the
+    // escape bank) in the middle of the mission 3 escape. Fleeing is radial
+    // (away from the player), so a ped on the sidewalk runs into the block,
+    // off the car's line. The 200 m radius gives them ~1 s to clear it.
+    if (target && Math.hypot(ped.x - target.x, ped.y - target.y) < 200) ped.panic = Math.max(ped.panic, 1);
     let dx = 0;
     let dy = 0;
     if (ped.panic > 0 && target) {
