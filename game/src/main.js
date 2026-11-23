@@ -1,8 +1,9 @@
-// Port Delmar: Low Tide — game loop, screens, player and car control, missions,
-// wanted level and police pursuit, shooting, pickups, save and load.
+// Port Delmar: Low Tide — the game loop, screens, player and car control,
+// the three story missions, the wanted level and police pursuit, shooting,
+// pickups, and save/load.
 //
-// ?seed=N fixes the city. ?shot=start|play|mission|police (with &seed=N) stages
-// that scene instead of running the loop, paints it twice and sets
+// ?seed=N fixes the city. ?shot=start|play|mission|police (with &seed=N)
+// stages that scene instead of running the loop, paints it twice and sets
 // window.__shotReady for a screenshot.
 import { CITY, CAR, PLAYER, SAVE_KEY, STEP, MISSION_POINTS } from './config.js';
 import { createWorld, solid, moveEntity, nearestCar, lineOfSight, roadPoint, updateWorld } from './world.js';
@@ -11,7 +12,8 @@ import { createAudio } from './audio.js';
 import { createRenderer } from './render.js';
 import { stageShot } from './shots.js';
 
-/** The longest frame the loop catches up on; a longer stall (a hidden tab) is dropped, not replayed. */
+// The longest frame the loop catches up on; a longer stall (a hidden tab)
+// is dropped rather than replayed.
 const MAX_FRAME = 0.25;
 const FIRE_COOLDOWN = 0.22;
 const CRIME_COOLDOWN = 2;
@@ -28,7 +30,8 @@ const renderer = createRenderer(canvas);
 const input = createInput(canvas);
 if ('ontouchstart' in window) document.getElementById('touch').classList.add('active');
 
-// Three story jobs. Each stage is a place to reach, a car to take, or a heat level to lose.
+// Three story jobs. A stage is a place to reach, a car to take, or a heat
+// level to lose; finishing all three pays $2,250 in total.
 const MISSIONS = [
   {
     giver: 'Mara Velez', reward: 500,
@@ -113,7 +116,12 @@ function notify(text, seconds = 3) {
 function burst(x, y, color, count = 10, speed = 120) {
   for (let i = 0; i < count; i++) {
     const a = Math.random() * Math.PI * 2;
-    state.particles.push({ x, y, vx: Math.cos(a) * speed * (0.4 + Math.random() * 0.6), vy: Math.sin(a) * speed * (0.4 + Math.random() * 0.6), life: 0.5 + Math.random() * 0.4, color });
+    state.particles.push({
+      x, y,
+      vx: Math.cos(a) * speed * (0.4 + Math.random() * 0.6),
+      vy: Math.sin(a) * speed * (0.4 + Math.random() * 0.6),
+      life: 0.5 + Math.random() * 0.4, color,
+    });
   }
 }
 
@@ -163,17 +171,17 @@ function startMission(index) {
   announce(`Mission: ${mission.giver}. ${state.objective}`);
 }
 
-// Mission 2's Sunrunner must always be drivable when the mission starts or
-// after a busted/wasted retry: a wrecked courier soft-locks the mission
-// (no other courier exists, cars never respawn). Restores it to its
-// pristine parked state (stolen:true so taking it adds no wanted level).
+// The Sunrunner must always be drivable when Niko's job starts or after a
+// busted/wasted retry: a wrecked courier soft-locks the mission (there is
+// no other courier, and cars never respawn). It comes back pristine and
+// parked, still marked stolen so taking it adds no wanted level.
 function restoreCourier() {
   const courier = state.world.cars.find((c) => c.id === 'courier');
   if (!courier) return;
   courier.health = 100;
   courier.x = MISSION_POINTS.courier.x;
   courier.y = MISSION_POINTS.courier.y;
-  courier.angle = 0;
+  courier.angle = Math.PI / 2;
   courier.speed = 0;
   courier.parked = true;
   courier.controlled = false;
@@ -204,7 +212,7 @@ function updateMission() {
         applyStage();
         notify('OBJECTIVE UPDATED / Follow the gold marker');
         if (mission.stages[state.stage].kind === 'escape') {
-          // Scripted heat: set it directly. addWanted() returns early during
+          // Scripted heat, set directly: addWanted() returns early during
           // the 2 s crime cooldown, which would silently skip the forced
           // 3-star escape if the player just committed a crime.
           state.wanted = 3;
@@ -408,15 +416,20 @@ function updatePlayer(dt) {
     const mouse = renderer.screenToWorld(input.pointer.x, input.pointer.y, state);
     state.player.angle = Math.atan2(mouse.y - state.player.y, mouse.x - state.player.x);
   }
-  // Sidewalk pickups.
+  // Sidewalk pickups: health patches the player, ammo refills the pistol.
   const pos = state.player;
   for (const p of state.world.pickups) {
     if (!p.active) continue;
     if (Math.hypot(p.x - pos.x, p.y - pos.y) < 24) {
       p.active = false;
       p.respawn = 25;
-      if (p.type === 'health') { state.player.health = Math.min(PLAYER.maxHealth, state.player.health + 35); notify('HEALTH +35 / Patched up'); }
-      else { state.player.ammo += 12; notify('AMMO +12 / Loaded'); }
+      if (p.type === 'health') {
+        state.player.health = Math.min(PLAYER.maxHealth, state.player.health + 35);
+        notify('HEALTH +35 / Patched up');
+      } else {
+        state.player.ammo += 12;
+        notify('AMMO +12 / Loaded');
+      }
       audio.play('pickup');
     }
   }
@@ -432,8 +445,14 @@ function updateCar(dt) {
   else car.speed *= Math.max(0, 1 - CAR.drag * dt);
   car.speed = Math.max(-CAR.maxSpeed * 0.45, Math.min(CAR.maxSpeed, car.speed));
   const steerInput = axes.x;
-  if (Math.abs(car.speed) > 4) {
-    car.angle += steerInput * CAR.steer * (car.speed / CAR.maxSpeed) * Math.sign(car.speed) * dt * 2.2;
+  // Steering keeps authority at a crawl: the old code needed |speed| > 4
+  // to steer at all, so a car pinned against a wall at speed ~0 could
+  // never turn its nose off the wall and stayed wedged forever. The floor
+  // only applies while the driver gives throttle, and driving above
+  // 36 m/s is unchanged, so normal handling is untouched.
+  const steerSpeed = Math.max(Math.abs(car.speed), throttle !== 0 ? 36 : 0);
+  if (steerInput !== 0 && steerSpeed > 0) {
+    car.angle += steerInput * CAR.steer * (steerSpeed / CAR.maxSpeed) * dt * 2.2;
   }
   const before = car.speed;
   const hit = moveEntity(state.world, car, Math.cos(car.angle) * car.speed * dt, Math.sin(car.angle) * car.speed * dt, 15);
@@ -450,7 +469,12 @@ function updateCar(dt) {
   for (const other of state.world.cars) {
     if (other === car || other.health <= 0) continue;
     if (Math.hypot(other.x - car.x, other.y - car.y) < 38) {
-      if (Math.abs(car.speed) > 90) { car.health -= 6; other.health -= 4; audio.play('crash'); burst(car.x, car.y, '#ffcd61', 8, 120); }
+      if (Math.abs(car.speed) > 90) {
+        car.health -= 6;
+        other.health -= 4;
+        audio.play('crash');
+        burst(car.x, car.y, '#ffcd61', 8, 120);
+      }
       car.speed *= 0.55;
       const push = Math.atan2(car.y - other.y, car.x - other.x);
       car.x += Math.cos(push) * 6;
@@ -587,7 +611,7 @@ function step(dt) {
     p.life -= dt;
   }
   state.particles = state.particles.filter((p) => p.life > 0);
-  // Camera follows the player or the car, pulling back as speed rises.
+  // The camera follows the player or the car, pulling back as speed rises.
   const target = focusPos();
   state.camera.x += (target.x - state.camera.x) * Math.min(1, 6 * dt);
   state.camera.y += (target.y - state.camera.y) * Math.min(1, 6 * dt);
