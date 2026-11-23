@@ -476,9 +476,15 @@ function updateCar(dt) {
         burst(car.x, car.y, '#ffcd61', 8, 120);
       }
       car.speed *= 0.55;
+      // The separation push goes through moveEntity, not a raw position
+      // change: a raw push could shove the car inside a building or past
+      // the map edge, where every direction is solid and moveEntity then
+      // blocks all movement forever — the car sat wedged at speed ~0,
+      // turning in place, for the rest of the escape. moveEntity slides
+      // along walls and stops at solid, so the push can never clip the
+      // car into a trap.
       const push = Math.atan2(car.y - other.y, car.x - other.x);
-      car.x += Math.cos(push) * 6;
-      car.y += Math.sin(push) * 6;
+      moveEntity(state.world, car, Math.cos(push) * 6, Math.sin(push) * 6, 15);
     }
   }
   // Running down a pedestrian is a crime, and it is felt.
